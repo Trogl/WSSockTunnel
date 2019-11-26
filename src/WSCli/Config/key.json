@@ -1,0 +1,25 @@
+{
+  "wstunnel": {
+    "serverUri": "ws://localhost:5000/ws",
+    "passwd": "test1",
+    "kid": "Jopas",
+    "port": 10080
+  },
+
+  "keyStore": {
+    "client": {
+      "Modulus": "wbtvYC6or+2Oqa4WJ1YhMAboe/uOZRJO6gX1nDpJZ5cgOwG2vFITMa/6cTrZOKDeBBUo/nm+2nVOs87aLwLbeCIs59kZiiv4u2IMqL1VnMd50B0kdvwVZiLBKUVkFdLuKSOrSh4V7UreQBn44s98Oar7NgT0jPlihZ2Cc/ra+anaUHc2mIroOztTVgbtiYdfcFcpivRoJVoqJYDahHwKxgb+AFoGfNSY+HLETbF5AFpqHTMne2qvmtbywzaJUxXuK+L3O/oJGUWyWF2Aczr5vp4wviI9LL90S1xBh+OB5o4tyV3/XJazNgkoVR8Ivai2nmVSdkxAhJsSdddPT1YJKh9t27yHVsGqpCKfiVGx0pfGyoJ/yjoiWTkssJ57zYpYwv+eNdJVkJ3hURUInDRkLx2evmy/JKqTHgoaY6nPSGZyPFHw+jJJgWpv2WjfgGtydEZ2IDgFGJmpczeM35Ei+GURP1lcCnulXOeq4jvFeXoDNlBp74Ee96Ccw4uny9/yJ4hWUET8S8NrIK6cwT1xKkEZ5DqwZBk0w/Y7hfciLcNOclL4MeGNOSgpDXfnMBhE2dRnKS91b0ZrX91xOObbXmDpDPpidtYVPEiqOzKOMrrtydeCWok6EXj6xcwPEjb1YmEP0D5/80ihL6f4YpDPzwThaTLNEiJsrAcwwvb0UiE=",
+      "Exponent": "AQAB",
+      "P": "+TFNBYznzwulsYkAzHQjuJ5nE87x0j81SSQ/CnPrtJjRU3utYiFx6OnfwEwqG8eW6983lqyW5+mCJ8wbEVcx/3B2YO7ylqTcoiv5qgOQn5YwP89Mp9RpiiK2/KR63qWSFezqdaJft38idishThvUD0TOSD17R5443HwaYvt7BD/gIcYkuDkNeNnQcVmJD9fADghEGwOqNCVongTwy/9GKg2IiJhBOn/CU8XJH4UTJiLjEuw3I9dZjAoR5cK32MlO9PxeT+I1sMNpBufnNi96KptaMkFlnwkLh5dqHrBNjJH0+AT2fXdKv2jnQwTFhoGZtTnjBB394ceorMME5CQpcw==",
+      "Q": "xwZHPgn1zK2ojFIrCprwLgY0kg+dSkdaFseHk+j5AP1b1lof/l1WAR1ThnsFiH/Sr/0ZV8A9xRWS8C+lNwyU42AWpfkEyhnCq8ZRAPAUTwJByzLC7cvhgB2j3WhLls1b8F3LhCKRrDA35+dOokzrU2ugcnbbXAOZUk4Uk94rIiXjylvyzjU+THKHOFYuCdRKhQx2/hJHnjs8r10G9iGQJrpiI5tStmXX7llKG8fgsO8J0OW/ueJ0P6hesOT3aahzFjTxVt5op3xunVzYXCW3F90KyCWCjXp3yywEv9RFn2mdMF0hQO6osLnQ6zPAqi86ThY8vi+vzLnFRa7TLHuBGw==",
+      "DP": "aAQoPlTevhICi+TALJeeAYY9SIttbXFs8KbsmZRhovTXC53odbm4LpzRBRfFy+q4GKUIMyC/rPZPmgUcl1RqTlHHWBbls/QFFLx+bnUmfTbX1QrW2IdVto9fCn4tu5opLHXEOG4aviGXZPQD5vK+xdDWuljPiMmGuqIi8YY/hzqSeAaZdTx7XyKsW2QgTjiktjbFFvGkrjefP7aYPM7FnvAfOcU0FRMXLpi0py+JGrYdStzG93MAse/SILHyw87j4mclhvrJposq3/MVFA0lVXubXrblkEjaQzL03PKCrFaQhqarrRuKW/OR9Ouc99RJMNiE5kcOnpwU0GhnNkPR+Q==",
+      "DQ": "adF3vY+UJgBLNlhV1Cyu+PmJqAMvURgA2U27UzQyeIk89Ao1Kow7txn9l+n+9iVoQvQiLlrjPM+MsbHTeSJyYzZqtFJjboUl0Sj/Vq1PTvbXPo+9vquBORoJTyYt0n9bm8By/c1XgKKehumgEIEvOcpmo5V4akLrmSw0mq4sZtqYc7ZRsbvzZLgcFyMTFVzPRlBrUAkuFP5P9LlUgzczKrQ8i8wAvUQG/A5zbbPnTou5v1z4hH/X6SS/O/Rxa7cJgcwiaVqVcD+jnH2J9+yBnemD2wi+kjSETv0XhVr6rZh84AMUNC7weA5D+1on3RSBPpVqNICsSwCW18btNqBv8w==",
+      "InverseQ": "dHYrkJ4ZT3G2WoZifXmWHvkAY6K9+g+WaX2Jxh3WxUY1i97eQlll2mW24clCKFDA3d+Fz5gxstMxlStGmzFeuOh0SQArrsn5/l0Sp+otWlQE2I8jkAOlldyWMyeAKJS9o2kr6MzvP3sRvozWcPsKRu4RHr9etUf1KykTMWaj9wLOgUTPrd6WLB+L73QI9N0O9z/Kj0QiFn3IqCH9N0c02JGAST8pK2uYJ9REPG8Fg4bAQcn3dw1sIW435W3HOLzcA2qjtwiAUlFgrzd4Zvf8Io4Dfrcpxm2pSkB2UI/DPSVB0Y3xpQufwmCMybiyHekZ22oLmaX2BUUOepDZhkvJgg==",
+      "D": "LtbHXcTKKgbQeDvLxWTwjzEMYnV2fv9HLxOTx1rcRnxmYX3PlYZud5PphBjLTgKuyuPmzmfW+fBkv9piK/2P3GK+4qs9nod1ErDpCJ8GJOqhi+yP1WirL891TiolwZUG2dFy52+Qs5dnVq4w2314tmSdafkWu0LMTCvBz5K2AKjNTKkV/RmQfkmgo2r3YUnmjD22oI7o4ycCi6C0tFVdMXWdUa5yZRnthhwRVAt1it1RTJACmrc3j8MqXIJB/2GM/PVZ+xk/u+l67hxlIvb+TNToSf/zNG9xiYrbmSQrUvfLICVmyRbyaz0ZkEL5lQlGZdNvdYSIEMeBVhZhaXgOrMEgWXVnBpNi3vZ5d3RgBqTC8/uJy8Yj1VB+flTbJEXUae+PDZmAaXP6Zzxn2vyYyDPQMzLYadiQQv1u5Od3249ctwn4OsM4xeRHgwxuCtoLx4BiVmc84eoraaWpg+iKzmcNr0b6PCnr478qqW+JEsDy1ahfiH78c+IqHJxBnyNWSvsIMTP5Fwx0mvti6BGv5jHns4MZWUnAnU0LlHNCSMc6uW9bmCgIDsXlYafnTmwhCOI94DWcnLUUI13E+k9S7WZYDyE6PyJlRnjsxE//mFhsYZ+HtEWwKXwZ4x15X6/iqDIb5kCqiI3qPa6k8X4X324Il23ojvvrw022vwpDK2U="
+    },
+    "server": {
+      "Modulus": "zdDQvhcfzwi3tP5KWDttlmKsAb/Yz/PQV79IV59ouHYUx6qJjAmz/1vRzJf+zvlpZDgmfcSuZj/jFX5/rxo17T+JKTq7SM/rTw1WCDKYEMw3TPO44soBp/7sYy1906QWT64ugabxWYvPri2yvAiHJ3NH7vANcx85jKmRAfWyZhrOwTGTa5DiFhx7d+DGGQPCSA+kqVtRQ+30zm7HVAvBeUdQ1KZYj+DAD1df26Geonlnt/u68/yc4lmpYypfwyzb0Hymx/A1/D1Gc6btecPwuB3Jyc1bGKqAYnxgG2ol2bRY4M+lJUGPWQbJmDqE3odFgBWwB4zu3zAJU+ZBuHA9Lad4SdIvUKRT8/+h9icDTT115QKJDRcJ7lBZGBWPXxGAAcMaI/atxT5e7FM0ImRKjlf9bpGsVJfrF9EBQ9viJpeAaddNI17zXXo0ENXQORavS9tUwjOZLZrPwKH+1n6j33rDn9raQyDGKihzoXT4ZrqhJPSN9eAHtThq2uLB8Ybpd7T7Zz3zikmIAuSKv9tBUPp6R3x8BFmczEQw8Z1GTtX+YgW5MLkbfUrTxpVwna3AGAWNtj48cDjMN/QERcPdVL+QzQiRtdlRZn32fUXL4r2nyRVJU88yw5TU7uchvQSdIBDOWexxyvK+K4uqlqhBCZUhAi+h7Xjo8kXojHqTiy0=",
+      "Exponent": "AQAB"
+    }
+  }
+}
