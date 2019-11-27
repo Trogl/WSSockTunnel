@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WSdto\WSdto.csproj" />
+    <ProjectReference Include="..\WSdto\WS.csproj" />
   </ItemGroup>
 
 </Project>

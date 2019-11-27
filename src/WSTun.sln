@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29509.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WSSrv", "WSSrv\WSSrv.csproj", "{1E78C7C1-54F4-4645-8D4C-D19BAEA32A40}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WSSrv", "WSSrv\WSSrv.csproj", "{1E78C7C1-54F4-4645-8D4C-D19BAEA32A40}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WSCli", "WSCli\WSCli.csproj", "{496D1898-AAA7-4102-B2D6-3DDFAE6E09F7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WSCli", "WSCli\WSCli.csproj", "{496D1898-AAA7-4102-B2D6-3DDFAE6E09F7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WSdto", "WSdto\WSdto.csproj", "{AD1C9EEC-4A2C-406D-8B01-C0519AA53065}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WS", "WSdto\WS.csproj", "{AD1C9EEC-4A2C-406D-8B01-C0519AA53065}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

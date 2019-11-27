@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using WSCli.Configuration;
 using WSCli.Logging;
 using WSCli.WS;
+using WSdto;
 using WSdto.Json;
 
 namespace WSCli.MX
@@ -17,30 +20,68 @@ namespace WSCli.MX
 
         public static async Task Start()
         {
-            log.LogInformation("Инициализация");
-            wsTunnelConfig = ConfigWatcher.GetSection("wstunnel").ConvertValue<WSTunnelConfig>();
+            try
+            {
+                log.LogInformation("Инициализация");
+                wsTunnelConfig = ConfigWatcher.GetSection("wstunnel").ConvertValue<WSTunnelConfig>();
 
 
-            client = new WsClient();
-            await client.OpenManagerTunnel(wsTunnelConfig.ServerUri, DisconnectTunnel, DisconnectSocket);
-            await client.Auth(wsTunnelConfig.Passwd, wsTunnelConfig.Kid);
-            await client.OpenDataTunnel();
+                client = new WsClient();
+                await client.OpenManagerTunnel(wsTunnelConfig.ServerUri, DisconnectTunnel, DisconnectSocket);
+                await client.Auth(wsTunnelConfig.Passwd, wsTunnelConfig.Kid);
+                var tunnelGuid = await client.OpenDataTunnel(DataReceiver, DisconnecDataTunnel);
+                var testObj = new EchoReq {ReqId = Guid.NewGuid(), Timestamp = DateTime.UtcNow};
+                await client.SendData(tunnelGuid, Guid.Empty, Encoding.UTF8.GetBytes(testObj.ToJson()));
+                log.LogInformation($"Послали echo - {testObj.ReqId}");
+
+            }
+            catch (Exception e)
+            {
+                log.LogError($"Ошибка инициализации: {e.Message}");
+                client.Dispose();
+            }
+
+
 
         }
 
+
+
         private static Task DisconnectSocket(Guid socketId)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
 
         private static Task DisconnectTunnel()
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
 
-        public static async Task Stop()
+        private static Task DisconnecDataTunnel(Guid socketId)
         {
+            return Task.CompletedTask;
+        }
 
+        private static async Task DataReceiver(Guid socketId, byte[] data)
+        {
+            if (socketId == Guid.Empty)
+                await EchoResponce(data);
+
+
+        }
+
+        private static Task EchoResponce(byte[] payload)
+        {
+            var str = Encoding.UTF8.GetString(payload);
+            var echoRes = JsonConvert.DeserializeObject<EchoRes>(str, JsonSettings.settings);
+            log.LogInformation($"Получили ответ на эхо - {echoRes.ReqId}");
+            return Task.CompletedTask;
+        }
+
+        public static Task Stop()
+        {
+            client.Dispose();
+            return Task.CompletedTask;
         }
     }
 }

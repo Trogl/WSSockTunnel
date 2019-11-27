@@ -36,7 +36,7 @@ namespace WSCli.MX
         }
 
         //private  Decode
-        private async Task<AuthResult> VerifySign(string jwsToken)
+        private Task<AuthResult> VerifySign(string jwsToken)
         {
             var result = new AuthResult
             {
@@ -66,14 +66,14 @@ namespace WSCli.MX
                 result.Kid = (string)kid;
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw new Exception("The JWS signature is not valid.");
             }
 
-            return result;
+            return Task.FromResult(result);
         }
-        private async Task<string> Decrypt(AuthResult aResult)
+        private Task<string> Decrypt(AuthResult aResult)
         {
             var jweHeader = Jose.JWT.Headers(aResult.JweToken);
 
@@ -94,21 +94,19 @@ namespace WSCli.MX
                 using var key = KeyStore.GetClientKey();
 
 
-                return Jose.JWT.Decode(aResult.JweToken, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM);
+                return Task.FromResult(Jose.JWT.Decode(aResult.JweToken, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM));
 
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw new Exception("The JWE Decode error");
             }
         }
 
         //private Encode
-        private async Task<string> Encrypt(string data, string kid)
+        private  Task<string> Encrypt(string data, string kid)
         {
-
-
             var extraHeaders = new Dictionary<string, object>
             {
                 { "typ", "JOSE" },
@@ -117,10 +115,10 @@ namespace WSCli.MX
             };
 
             using var key = KeyStore.GetServerKey();
-            return Jose.JWT.Encode(data, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM, extraHeaders: extraHeaders);
+            return Task.FromResult(Jose.JWT.Encode(data, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM, extraHeaders: extraHeaders));
 
         }
-        private async Task<string> Sign(string data, string kid)
+        private Task<string> Sign(string data, string kid)
         {
             var extraHeaders = new Dictionary<string, object>
             {
@@ -131,7 +129,7 @@ namespace WSCli.MX
             };
 
             using var key = KeyStore.GetClientKey();
-            return Jose.JWT.Encode(data, key, JwsAlgorithm.RS256, extraHeaders: extraHeaders);
+            return Task.FromResult(Jose.JWT.Encode(data, key, JwsAlgorithm.RS256, extraHeaders: extraHeaders));
 
         }
     }

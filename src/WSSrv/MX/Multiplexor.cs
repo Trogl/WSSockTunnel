@@ -4,16 +4,21 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
 using Jose;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
+using WS.Common;
 using WSdto;
 using WSdto.Json;
 using WSSrv.RsaKeys;
@@ -27,7 +32,6 @@ namespace WSSrv.MX
         public string UserId;
         public string Passwd;
         public bool IsEnable;
-        public List<Guid> DataConnections = new List<Guid>();
     }
 
     public enum ConnectionType
@@ -51,7 +55,7 @@ namespace WSSrv.MX
         public CancellationTokenSource notAuthTimeOut;
         public UserInfo UserInfo;
 
-        public ConcurrentDictionary<Guid,Guid> dataConnections = new ConcurrentDictionary<Guid,Guid>();
+        public ConcurrentDictionary<Guid, Guid> dataConnections = new ConcurrentDictionary<Guid, Guid>();
         public ConcurrentDictionary<Guid, Guid> dataScokets = new ConcurrentDictionary<Guid, Guid>();
     }
 
@@ -67,8 +71,14 @@ namespace WSSrv.MX
         public Guid reqCID;
         public CancellationTokenSource notConnectionTimeOut;
         public Aes aes;
-        public int bufferSize;
+        public int blockSize;
         public Guid mainConnectionId;
+    }
+
+    public class SocketInfo
+    {
+        public Guid mainConnectionId;
+        public Socket Socket;
     }
 
 
@@ -78,16 +88,16 @@ namespace WSSrv.MX
         private ConcurrentDictionary<Guid, ManagingConnectionInfo> mConnections = new ConcurrentDictionary<Guid, ManagingConnectionInfo>();
         private ConcurrentDictionary<Guid, DataConnectionInfo> dConnections = new ConcurrentDictionary<Guid, DataConnectionInfo>();
         private ConcurrentDictionary<Guid, ReqDataConnection> reqDConnections = new ConcurrentDictionary<Guid, ReqDataConnection>();
-
+        private ConcurrentDictionary<Guid, SocketInfo> socketInfos = new ConcurrentDictionary<Guid, SocketInfo>();
 
 
 
         private MessageEncoder mEncoder;
-        private DataEncoder dEncoder;
+        private DataEncryptor dEncoder;
         private DataCache dataCache;
 
 
-        public Multiplexor(ILoggerProvider loggerProvider, MessageEncoder mEncoder, DataCache dataCache, DataEncoder dEncoder)
+        public Multiplexor(ILoggerProvider loggerProvider, MessageEncoder mEncoder, DataCache dataCache, DataEncryptor dEncoder)
         {
             this.mEncoder = mEncoder;
             this.dataCache = dataCache;
@@ -202,27 +212,29 @@ namespace WSSrv.MX
             }
         }
 
-        public async Task RegisterDataConnection(WebSocket socket, Guid cid ,string path)
+        public async Task RegisterDataConnection(WebSocket socket, Guid cid, string path)
         {
-            if (!Guid.TryParse(path, out var reqCID))
+
+            if (!Guid.TryParse(path.TrimStart('/'), out var reqCID))
                 return;
 
-            if(!reqDConnections.TryRemove(reqCID, out var reqConnInfo))
+            if (!reqDConnections.TryRemove(reqCID, out var reqConnInfo))
                 return;
 
-            if(!mConnections.TryGetValue(reqConnInfo.mainConnectionId, out var mainConnection))
+            if (!mConnections.TryGetValue(reqConnInfo.mainConnectionId, out var mainConnection))
                 return;
 
             var dConn = new DataConnectionInfo
             {
+                type = ConnectionType.Data,
                 connectionId = cid,
                 socket = socket,
                 aes = reqConnInfo.aes,
-                bufferSize = reqConnInfo.bufferSize,
+                bufferSize = reqConnInfo.blockSize,
                 mainConnectionId = mainConnection.connectionId
             };
 
-            if(!dConnections.TryAdd(cid,dConn))
+            if (!dConnections.TryAdd(cid, dConn))
                 return;
 
             mainConnection.dataConnections.TryAdd(cid, cid);
@@ -232,10 +244,9 @@ namespace WSSrv.MX
             mainConnection.dataConnections.TryRemove(cid, out _);
         }
 
-
         private async Task ProcessingDataConnection(DataConnectionInfo connectionInfo)
         {
-            var buffer = new byte[connectionInfo.bufferSize];
+            var buffer = new byte[16 * 1024];
             while (connectionInfo.socket.State == WebSocketState.Open)
             {
                 var ms = new MemoryStream();
@@ -268,18 +279,27 @@ namespace WSSrv.MX
 
         }
 
-        private async Task HandleDataMessage(byte[] data, DataConnectionInfo connectionInfo)
+        private async Task HandleDataMessage(byte[] encryptedData, DataConnectionInfo connectionInfo)
         {
-            (Guid socketId, byte[] data) res = await dEncoder.Encode(connectionInfo.aes, data);
+            var data = await dEncoder.Decrypt(connectionInfo.aes, encryptedData);
 
-            if (res.socketId == Guid.Empty)
+            var ms = new MemoryStream(data);
+            using var br = new BinaryReader(ms);
+
+            var socketId = new Guid(br.ReadBytes(16));
+            var payloadSize = br.ReadInt32();
+            var payload = br.ReadBytes(payloadSize);
+
+
+            if (socketId == Guid.Empty)
             {
-
+                await EchoProcessing(connectionInfo, payload);
             }
-
-
+            else
+            {
+                await SocketProcessing(socketId, payload);
+            }
         }
-
 
         private async Task Auth(ManagingConnectionInfo connectionInfo, Message msg, string userId)
         {
@@ -390,7 +410,7 @@ namespace WSSrv.MX
                 reqCID = Guid.NewGuid(),
                 notConnectionTimeOut = new CancellationTokenSource(),
                 aes = aes,
-                bufferSize = 8 * 1024,
+                blockSize = 0,
                 mainConnectionId = connectionInfo.connectionId
             };
 
@@ -409,12 +429,13 @@ namespace WSSrv.MX
                 result.TimeStamp = DateTime.UtcNow;
 
                 await SendMessage(connectionInfo, result);
+                return;
 
             }
 
             dtaRes.DTKey = dataConnection.aes.Key;
-            dtaRes.DTIV = dataConnection.aes.Key;
-            dtaRes.DTBS = dataConnection.bufferSize;
+            dtaRes.DTIV = dataConnection.aes.IV;
+            dtaRes.DTBS = dataConnection.blockSize;
             dtaRes.DTUri = dataConnection.reqCID.ToString("N");
 
             dataConnection.notConnectionTimeOut.Token.Register(() =>
@@ -424,10 +445,7 @@ namespace WSSrv.MX
 
 
             dtaRes.Status = ResStatus.Ok;
-            dtaRes.Error = new Error
-            {
-                Code = "InternalError",
-            };
+            dtaRes.Error = null;
 
             sw.Stop();
             result.ExecutionDuration = sw.Elapsed;
@@ -441,18 +459,107 @@ namespace WSSrv.MX
 
         private async Task NewConnection(ManagingConnectionInfo connectionInfo, Message msg)
         {
-            throw new NotImplementedException();
+            var sw = new Stopwatch();
+            sw.Start();
+
+            var conReq = msg.Payload.ConvertValue<ConReq>();
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            try
+            {
+                await socket.ConnectAsync(conReq.Addr, conReq.Port);
+                if (socketInfos.TryAdd(conReq.SocketId, new SocketInfo
+                {
+                    Socket = socket,
+                    mainConnectionId = connectionInfo.connectionId
+                }))
+                {
+                    connectionInfo.dataScokets.TryAdd(conReq.SocketId, conReq.SocketId);
+                }
+                else
+                {
+                    throw new Exception("Ошибка добавления соедининия");
+                }
+
+                sw.Stop();
+                
+                await SendMessage(connectionInfo, new Message
+                {
+                    CorrelationId = msg.CorrelationId,
+                    ExecutionDuration = sw.Elapsed,
+                    TimeStamp = DateTime.UtcNow,
+                    Type = "ConRes",
+                    Payload = new ConRes
+                    {
+                        SocketId = conReq.SocketId,
+                        Status = ResStatus.Ok
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                await SendMessage(connectionInfo, new Message
+                {
+                    CorrelationId = msg.CorrelationId,
+                    ExecutionDuration = sw.Elapsed,
+                    TimeStamp = DateTime.UtcNow,
+                    Type = "ConRes",
+                    Payload = new ConRes
+                    {
+                        SocketId = conReq.SocketId,
+                        Status = ResStatus.Error,
+                        Error = new Error
+                        {
+                            Code = "ConnectionFailed",
+                            Message = ex.Message
+                        }
+                    }
+                });
+            }
         }
 
-        private async Task Disconnect(ManagingConnectionInfo connection, Message msg)
+        private Task Disconnect(ManagingConnectionInfo connection, Message msg)
         {
-            throw new NotImplementedException();
+            var dEvent = msg.Payload.ConvertValue<DisconEvnt>();
+            return SocketDisconnect(dEvent.SocketId, false);
+        }
+
+        private async Task SocketDisconnect(Guid socketId, bool sendEvent)
+        {
+            if (socketInfos.TryRemove(socketId, out var socketInfo))
+            {
+                if (socketInfo.Socket.Connected)
+                {
+                    socketInfo.Socket.Close();
+                }
+                if (mConnections.TryGetValue(socketInfo.mainConnectionId, out var managingConnection))
+                {
+                    if (managingConnection.dataScokets.TryRemove(socketId, out var _))
+                    {
+                        if (sendEvent)
+                            await SendDisconectEvent(managingConnection, socketId);
+                    }
+                }
+            }
         }
 
         private async Task<bool> SendMessage(ManagingConnectionInfo connection, Message msg)
         {
             var data = await mEncoder.Encode(msg, connection.UserInfo.Kid);
             return await SendData(connection, data);
+        }
+
+        private async Task<bool> SendData(DataConnectionInfo connectionInfo, Guid socketId, byte[] data)
+        {
+            await using var ms = new MemoryStream();
+            await using var bw = new BinaryWriter(ms);
+            bw.Write(socketId.ToByteArray());
+            bw.Write(data.Length);
+            bw.Write(data);
+            bw.Flush();
+
+            var encodedData = await dEncoder.Encrypt(connectionInfo.aes, connectionInfo.bufferSize, ms.ToArray());
+
+            return await SendData(connectionInfo, encodedData);
         }
 
         private async Task<bool> SendData(ConnectionInfo connection, byte[] data)
@@ -467,7 +574,7 @@ namespace WSSrv.MX
                 await connection.socket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
                 return true;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 RemoveConnection(connection);
                 return false;
@@ -479,6 +586,45 @@ namespace WSSrv.MX
         private void RemoveConnection(ConnectionInfo connection)
         {
             //todo
+        }
+
+        private async Task EchoProcessing(DataConnectionInfo connectionInfo, byte[] payload)
+        {
+            var str = Encoding.UTF8.GetString(payload);
+            var echoReq = JsonConvert.DeserializeObject<EchoReq>(str, JsonSettings.settings);
+            var echoRes = new EchoRes
+            {
+                ReqId = echoReq.ReqId,
+                ReqTimestamp = echoReq.Timestamp,
+                ResTimestamp = DateTime.UtcNow
+            };
+            await SendData(connectionInfo, Guid.Empty, Encoding.UTF8.GetBytes(echoRes.ToJson()));
+        }
+
+        private async Task SocketProcessing(Guid socketId, byte[] payload)
+        {
+            if (socketInfos.TryGetValue(socketId, out var socketInfo))
+            {
+                if (!socketInfo.Socket.Connected)
+                {
+                    await SocketDisconnect(socketId, true);
+                }
+                await socketInfo.Socket.SendAsync(payload, SocketFlags.None);
+            }
+        }
+
+        private  Task SendDisconectEvent(ManagingConnectionInfo managingConnection, Guid socketId)
+        {
+            return SendMessage(managingConnection, new Message
+            {
+                CorrelationId = Guid.NewGuid().ToString("N"),
+                Type = "DisconEvnt",
+                TimeStamp = DateTime.UtcNow,
+                Payload = new DisconEvnt
+                {
+                    SocketId = socketId
+                }
+            });
         }
     }
 }

@@ -82,4 +82,19 @@ namespace WSdto
         public string JweToken { get; set; }
         public IDictionary<string, object> JwsHeader { get; set; }
     }
+
+    public class EchoReq
+    {
+        public Guid  ReqId { get; set; }
+        public DateTime Timestamp { get; set; }
+
+    }
+
+    public class EchoRes
+    {
+        public Guid ReqId { get; set; }
+        public DateTime ReqTimestamp { get; set; }
+        public DateTime ResTimestamp { get; set; }
+
+    }
 }

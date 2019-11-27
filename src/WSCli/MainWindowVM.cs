@@ -46,6 +46,7 @@ namespace WSCli
 
         private async void ConnectMethod()
         {
+            LogEntities.Clear();
             log.LogInformation("Инициализация мультиплексора");
             await Multiplexor.Start();
         }

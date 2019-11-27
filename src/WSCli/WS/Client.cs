@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
+using WS.Common;
 using WSCli.Logging;
 using WSCli.MX;
 using WSdto;
@@ -26,6 +27,7 @@ namespace WSCli.WS
 
     public class DataTunnelInfo
     {
+        public Guid TunnelId { get; set; }
         public string Uri { get; set; }
         public Aes Key { get; set; }
         public int BlockSize { get; set; }
@@ -41,7 +43,7 @@ namespace WSCli.WS
         private readonly ConcurrentDictionary<Guid, DataTunnelInfo> dataTunnelInfos = new ConcurrentDictionary<Guid, DataTunnelInfo>();
         private Action<byte[]> resiveAction;
         private MessageEncoder mEncoder = new MessageEncoder();
-        private DataEncoder dEncoder = new DataEncoder();
+        private DataEncryptor dEncoder = new DataEncryptor();
         private string kid;
         private Uri serverUri;
 
@@ -51,9 +53,6 @@ namespace WSCli.WS
         static WsClient()
         {
         }
-
-
-
         public async Task OpenManagerTunnel(string uri, Func<Task> disconnectTunnel, Func<Guid,Task> disconnectSocket)
         {
             managerWebSocket = new ClientWebSocket(); 
@@ -74,8 +73,6 @@ namespace WSCli.WS
             log.LogInformation($"Есть контакт");
             RunManagerReceiver(disconnectTunnel, disconnectSocket);
         }
-
-
         public async Task Auth(string passwd, string kid)
         {
             this.kid = kid;
@@ -92,51 +89,68 @@ namespace WSCli.WS
                 throw new Exception(aRes.Error.Code);
             }
         }
-
-        public async Task OpenDataTunnel(Func<Task<(Guid, byte[])>> dataReceiver)
+        public async Task<Guid> OpenDataTunnel(Func<Guid, byte[], Task> dataReceiver, Func<Guid,Task> disconnectTunnel)
         {
             var res = await SendDataTunnelRequest();
             if (res.Status != ResStatus.Ok)
             { 
                 log.LogError($"Ошибка открытия дата тунеля: {res.Error.Code}");
-                return;
+                throw new Exception($"Ошибка открытия дата тунеля: {res.Error.Code}");
             }
 
-
-
             var ws  = new ClientWebSocket();
-            var wsUri = new Uri(serverUri, res.DTUri);
+            var wsUri = new Uri($"{serverUri}/{res.DTUri}");
             log.LogInformation($"Подключение к {wsUri}");
 
 
             try
             {
                 await ws.ConnectAsync(wsUri, CancellationToken.None);
+
+
             }
             catch (Exception ex)
             {
-                log.LogError(ex, $"{ex.Message}");
-                return;
+                log.LogError(ex, $"Ошибка соединения :{ex.Message}");
+                throw;
             }
 
+            var dtInfo = new DataTunnelInfo
+            {
+                TunnelId = Guid.NewGuid(),
+                Uri = wsUri.ToString(),
+                BlockSize = res.DTBS,
+                Socket = ws,
+            };
 
+            try
+            {
+                var aes = Aes.Create();
+                aes.Key = res.DTKey;
+                aes.IV = res.DTIV;
+                dtInfo.Key = aes;
 
-            RunDataReceiver(ws, res.DTUri, dataReceiver);
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, $"Ошибка ключа :{ex.Message}");
+                throw;
+            }
+
+            dataTunnelInfos.TryAdd(dtInfo.TunnelId, dtInfo);
+
+            RunDataReceiver(ws, dtInfo, dataReceiver);
             log.LogInformation($"Дата тунель открыт");
+
+            return dtInfo.TunnelId;
 
 
         }
-
-
-
-
         public  async Task Stop()
         {
             await managerWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
 
         }
-
-
         //internal
         private  void RunManagerReceiver(Func<Task> disconnectTunnel, Func<Guid, Task> disconnectSocket)
         {
@@ -174,7 +188,6 @@ namespace WSCli.WS
                 return Task.CompletedTask;
             }
         }
-
         private  async Task<ARes> SendAReq(AReq aReq)
         {
             var msg = new Message
@@ -188,7 +201,6 @@ namespace WSCli.WS
             var jObj = await SendManagerCommand(msg);
             return jObj.ConvertValue<ARes>();
         }
-
         private async Task<DTARes> SendDataTunnelRequest()
         {
             var msg = new Message
@@ -202,8 +214,6 @@ namespace WSCli.WS
             var jObj = await SendManagerCommand(msg);
             return jObj.ConvertValue<DTARes>();
         }
-
-
         private  async Task<JObject> SendManagerCommand(Message msg)
         {
             var data = await mEncoder.Encode(msg, kid);
@@ -214,13 +224,11 @@ namespace WSCli.WS
             return await tcs.Task;
 
         }
-
         // common
         private  async Task ReceiveAsync(ClientWebSocket socket, Func<byte[], Task> messageHandler, Func<Task> closeHandler)
         {
             var bytes = new byte[1024*16];
             var buffer = new ArraySegment<byte>(bytes);
-            bool isClose = false;
             while (socket.State == WebSocketState.Open)
             {
                 var ms = new MemoryStream();
@@ -253,8 +261,6 @@ namespace WSCli.WS
                 }
             }
         }
-
-
         private  TaskCompletionSource<JObject> RegisterSimpleCommandResultHandler(string correlationId, int timeOut)
         {
             var info = new ReqInfo
@@ -278,10 +284,8 @@ namespace WSCli.WS
 
             return info.CompletionSource;
         }
-
         //data
-
-        private  void RunDataReceiver(ClientWebSocket socket, DataTunnelInfo dInfo, Func<Task<(Guid, byte[])>> dataReceiver)
+        private  void RunDataReceiver(ClientWebSocket socket, DataTunnelInfo dInfo, Func<Guid, byte[], Task> dataReceiver)
         {
             Task.Run(async () =>
             {
@@ -294,17 +298,16 @@ namespace WSCli.WS
                 log.LogInformation($"Дисконект DT");
             });
 
-            async Task MessageHandler(byte[] encodedData)
+            async Task MessageHandler(byte[] encryptedData)
             {
-                var data = await dEncoder.Decode(dInfo.Key, dInfo.BlockSize, encodedData);
-
-                await using var ms = new MemoryStream(data);
-
+                var data = await dEncoder.Decrypt(dInfo.Key, encryptedData);
+                await using var ms  = new MemoryStream(data);
                 using var br = new BinaryReader(ms);
-                
-                    
-                
+                var guidb = br.ReadBytes(16);
+                var payloadSize = br.ReadInt32();
+                var payload = br.ReadBytes(payloadSize);
 
+                await dataReceiver(new Guid(guidb), payload);
 
 
             }
@@ -313,18 +316,59 @@ namespace WSCli.WS
             {
                 return Task.CompletedTask;
             }
+        }       
+
+        public  async Task SendData(Guid tunnelId, Guid socketId, byte[] data)
+        {
+            if (dataTunnelInfos.TryGetValue(tunnelId, out var tunnelInfo))
+            {
+                await using var ms = new MemoryStream();
+                await using var bw = new BinaryWriter(ms);
+                bw.Write(socketId.ToByteArray());
+                bw.Write(data.Length);
+                bw.Write(data);
+                bw.Flush();
+
+                var encodedData = await dEncoder.Encrypt(tunnelInfo.Key, tunnelInfo.BlockSize, ms.ToArray());
+
+                await SendData(tunnelInfo, encodedData);
+            }
         }
 
+        private async Task SendData(DataTunnelInfo tunnelInfo, byte[] data)
+        {
+            if (tunnelInfo.Socket.State != WebSocketState.Open)
+            {
+                RemoveConnection(tunnelInfo);
+            }
+            try
+            {
+                await tunnelInfo.Socket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                RemoveConnection(tunnelInfo);
+            }
+        }
 
-
-        public  async Task SendData(Guid socketId, byte[] data)
+        private void RemoveConnection(DataTunnelInfo tunnelInfo)
         {
 
         }
 
         public void Dispose()
         {
-            managerWebSocket?.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).Wait();
+            foreach (var dataTunnelInfo in dataTunnelInfos)
+            {
+                if (dataTunnelInfo.Value.Socket.State == WebSocketState.Open)
+                    dataTunnelInfo.Value.Socket
+                        .CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).Wait();
+            }
+
+            dataTunnelInfos.Clear();
+
+            if (managerWebSocket?.State == WebSocketState.Open)
+                managerWebSocket?.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).Wait();
             managerWebSocket?.Dispose();
         }
     }

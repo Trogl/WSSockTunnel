@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using WS.Common;
 using WSSrv.MX;
 using WSSrv.RsaKeys;
 using WSSrv.WS;
@@ -21,7 +17,7 @@ namespace WSSrv
         {
             services.AddSingleton<Multiplexor>();
             services.AddSingleton<MessageEncoder>();
-            services.AddSingleton<DataEncoder>();
+            services.AddSingleton<DataEncryptor>();
             services.AddSingleton<DataCache>();
 
         }

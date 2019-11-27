@@ -87,7 +87,7 @@ namespace WSSrv.MX
                 result.UserId = rsaKeys.UserId;
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw new Exception("The JWS signature is not valid.");
             }
@@ -125,7 +125,7 @@ namespace WSSrv.MX
 
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw new Exception("The JWE Decode error");
             }

@@ -37,7 +37,7 @@ namespace WSSrv.WS
                 await multiplexor.RegisterManagingConnection(socket, connectionId);
 
                 if (socket.State == WebSocketState.Open)
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                    await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
 
             }
             else
@@ -48,12 +48,8 @@ namespace WSSrv.WS
                 await multiplexor.RegisterDataConnection(socket, connectionId, path);
 
                 if (socket.State == WebSocketState.Open)
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
-
-
+                    await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
             }
-
-
             log.LogInformation($"[{connectionId}] - Закрыли соединение");
 
         }
