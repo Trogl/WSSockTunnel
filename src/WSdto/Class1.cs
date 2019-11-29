@@ -35,12 +35,14 @@ namespace WSdto
     {
         public Guid SocketId { get; set; } 
         public string Addr { get; set; }
-        public int Port { get; set; }
+        public short Port { get; set; }
+        public TimeSpan Timeout { get; set; }
     }
 
     public class ConRes
     {
         public Guid SocketId { get; set; }
+        public byte[] Ip { get; set; }
         public ResStatus Status { get; set; }
         public Error Error { get; set; }
     }

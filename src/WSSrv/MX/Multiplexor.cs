@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
@@ -78,6 +79,7 @@ namespace WSSrv.MX
     public class SocketInfo
     {
         public Guid mainConnectionId;
+        public Guid SocketId;
         public Socket Socket;
     }
 
@@ -466,14 +468,22 @@ namespace WSSrv.MX
             var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             try
             {
-                await socket.ConnectAsync(conReq.Addr, conReq.Port);
-                if (socketInfos.TryAdd(conReq.SocketId, new SocketInfo
+
+                var ip = Dns.GetHostAddresses(conReq.Addr)
+                    .First(p => p.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                
+
+                await socket.ConnectAsync(ip, conReq.Port);
+                var socketInfo = new SocketInfo
                 {
                     Socket = socket,
-                    mainConnectionId = connectionInfo.connectionId
-                }))
+                    mainConnectionId = connectionInfo.connectionId,
+                    SocketId = conReq.SocketId
+                };
+                if (socketInfos.TryAdd(conReq.SocketId, socketInfo))
                 {
-                    connectionInfo.dataScokets.TryAdd(conReq.SocketId, conReq.SocketId);
+                    log.LogTrace($"Новый сокет {conReq.SocketId} -> {ip}:{conReq.Port}");
+                    RunProcessingSocketConnection(socketInfo);
                 }
                 else
                 {
@@ -481,7 +491,7 @@ namespace WSSrv.MX
                 }
 
                 sw.Stop();
-                
+
                 await SendMessage(connectionInfo, new Message
                 {
                     CorrelationId = msg.CorrelationId,
@@ -491,6 +501,7 @@ namespace WSSrv.MX
                     Payload = new ConRes
                     {
                         SocketId = conReq.SocketId,
+                        Ip = ip.GetAddressBytes(),
                         Status = ResStatus.Ok
                     }
                 });
@@ -515,6 +526,17 @@ namespace WSSrv.MX
                     }
                 });
             }
+
+            void RunProcessingSocketConnection(SocketInfo si)
+            {
+                connectionInfo.dataScokets.TryAdd(si.SocketId, si.SocketId);
+                Task.Run(async () =>
+                {
+                    await ProcessingSocketConnection(si);
+                    await SocketDisconnect(si.SocketId, true);
+                });
+            }
+
         }
 
         private Task Disconnect(ManagingConnectionInfo connection, Message msg)
@@ -527,9 +549,16 @@ namespace WSSrv.MX
         {
             if (socketInfos.TryRemove(socketId, out var socketInfo))
             {
+                log.LogTrace($"Закрываес сокет {socketId}");
                 if (socketInfo.Socket.Connected)
                 {
-                    socketInfo.Socket.Close();
+                    try
+                    {
+                        socketInfo.Socket.Close();
+                    }
+                    catch (Exception)
+                    {
+                    }
                 }
                 if (mConnections.TryGetValue(socketInfo.mainConnectionId, out var managingConnection))
                 {
@@ -548,13 +577,13 @@ namespace WSSrv.MX
             return await SendData(connection, data);
         }
 
-        private async Task<bool> SendData(DataConnectionInfo connectionInfo, Guid socketId, byte[] data)
+        private async Task<bool> SendData(DataConnectionInfo connectionInfo, Guid socketId, byte[] data, int size)
         {
             await using var ms = new MemoryStream();
             await using var bw = new BinaryWriter(ms);
             bw.Write(socketId.ToByteArray());
-            bw.Write(data.Length);
-            bw.Write(data);
+            bw.Write(size);
+            bw.Write(data, 0, size);
             bw.Flush();
 
             var encodedData = await dEncoder.Encrypt(connectionInfo.aes, connectionInfo.bufferSize, ms.ToArray());
@@ -598,7 +627,9 @@ namespace WSSrv.MX
                 ReqTimestamp = echoReq.Timestamp,
                 ResTimestamp = DateTime.UtcNow
             };
-            await SendData(connectionInfo, Guid.Empty, Encoding.UTF8.GetBytes(echoRes.ToJson()));
+
+            var buffer = Encoding.UTF8.GetBytes(echoRes.ToJson());
+            await SendData(connectionInfo, Guid.Empty, buffer, buffer.Length);
         }
 
         private async Task SocketProcessing(Guid socketId, byte[] payload)
@@ -609,11 +640,20 @@ namespace WSSrv.MX
                 {
                     await SocketDisconnect(socketId, true);
                 }
-                await socketInfo.Socket.SendAsync(payload, SocketFlags.None);
+
+                try
+                {
+                    await socketInfo.Socket.SendAsync(payload, SocketFlags.None);
+                }
+                catch (SocketException e)
+                {
+                    await SocketDisconnect(socketId, true);
+                }
+
             }
         }
 
-        private  Task SendDisconectEvent(ManagingConnectionInfo managingConnection, Guid socketId)
+        private Task SendDisconectEvent(ManagingConnectionInfo managingConnection, Guid socketId)
         {
             return SendMessage(managingConnection, new Message
             {
@@ -625,6 +665,55 @@ namespace WSSrv.MX
                     SocketId = socketId
                 }
             });
+        }
+
+
+        private async Task ProcessingSocketConnection(SocketInfo socketInfo)
+        {
+            var buffer = new byte[16 * 1024];
+            var zeroBytesCount = 0;
+            while (socketInfo.Socket.Connected)
+            {
+                try
+                {
+                    var bytes = await socketInfo.Socket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
+
+                    if (bytes != 0)
+                    {
+                        zeroBytesCount = 0;
+                        if (mConnections.TryGetValue(socketInfo.mainConnectionId, out var mC))
+                        {
+                            var dc = mC.dataConnections.FirstOrDefault();
+
+                            if (dConnections.TryGetValue(dc.Key, out var dataConnection))
+                            {
+                                await SendData(dataConnection, socketInfo.SocketId, buffer, bytes);
+                            }
+                        }
+                        else
+                        {
+                            zeroBytesCount++;
+                        }
+
+                        if (zeroBytesCount == 100)
+                            break;
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode != SocketError.OperationAborted)
+                    {
+                        log.LogError($"[{socketInfo.SocketId}]: Приполучении данных  из сокета произошла ошибка: {ex.Message} ");
+                    }
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    log.LogError($"[{socketInfo.SocketId}]: Приполучении данных  из сокета произошла ошибка: {ex.Message} ");
+                    break;
+                }
+            }
+
         }
     }
 }
