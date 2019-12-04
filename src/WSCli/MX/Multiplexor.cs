@@ -41,8 +41,8 @@ namespace WSCli.MX
 
 
                 client = new WsClient();
-                await client.OpenManagerTunnel(wsTunnelConfig.ServerUri, DisconnectTunnel, DisconnectSocket);
-                await client.Auth(wsTunnelConfig.Passwd, wsTunnelConfig.Kid);
+                await client.OpenManagerTunnel(wsTunnelConfig, DisconnectTunnel, DisconnectSocket);
+                await client.Auth();
                 var tunnelGuid = await client.OpenDataTunnel(DataReceiver, DisconnecDataTunnel);
                 dataConnections.TryAdd(tunnelGuid, new WSDataConnectionInfo
                 {

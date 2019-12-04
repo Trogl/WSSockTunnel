@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using WS.Common;
+using WSCli.Configuration;
 using WSCli.Logging;
 using WSCli.MX;
 using WSdto;
@@ -47,8 +48,8 @@ namespace WSCli.WS
         private Action<byte[]> resiveAction;
         private MessageEncoder mEncoder = new MessageEncoder();
         private DataEncryptor dEncoder = new DataEncryptor();
-        private string kid;
         private Uri serverUri;
+        private WSTunnelConfig config;
 
 
 
@@ -56,14 +57,28 @@ namespace WSCli.WS
         static WsClient()
         {
         }
-        public async Task OpenManagerTunnel(string uri, Func<Task> disconnectTunnel, Func<Guid,Task> disconnectSocket)
+        public async Task OpenManagerTunnel(WSTunnelConfig config, Func<Task> disconnectTunnel, Func<Guid,Task> disconnectSocket)
         {
             managerWebSocket = new ClientWebSocket(); 
-            serverUri = new Uri(uri);
+            serverUri = new Uri(config.ServerUri);
+            this.config = config;
             log.LogInformation($"Подключение к {serverUri}");
 
             try
             {
+                if (!string.IsNullOrWhiteSpace(config.Proxy?.Server))
+                {
+                     var proxy = new WebProxy(config.Proxy.Server, config.Proxy.Port);
+
+                     proxy.UseDefaultCredentials = config.Proxy.UseDefaultCredentials;
+                     if (!string.IsNullOrWhiteSpace(config.Proxy.Login))
+                     {
+                         proxy.Credentials = new NetworkCredential(config.Proxy.Login,config.Proxy.Passwd);
+                     }
+
+                     managerWebSocket.Options.Proxy = proxy;
+                }
+
                 await managerWebSocket.ConnectAsync(serverUri, CancellationToken.None);
             }
             catch (Exception ex)
@@ -76,10 +91,9 @@ namespace WSCli.WS
             log.LogInformation($"Есть контакт");
             RunManagerReceiver(disconnectTunnel, disconnectSocket);
         }
-        public async Task Auth(string passwd, string kid)
+        public async Task Auth()
         {
-            this.kid = kid;
-            var aRes = await SendAReq(new AReq { Passwd = passwd });
+            var aRes = await SendAReq(new AReq { Passwd = config.Passwd });
             if (aRes.Status == ResStatus.Ok)
             {
                 log.LogTrace($"Авторизация пройдена");
@@ -108,9 +122,21 @@ namespace WSCli.WS
 
             try
             {
+
+                if (!string.IsNullOrWhiteSpace(config.Proxy?.Server))
+                {
+                    var proxy = new WebProxy(config.Proxy.Server, config.Proxy.Port);
+
+                    proxy.UseDefaultCredentials = config.Proxy.UseDefaultCredentials;
+                    if (!string.IsNullOrWhiteSpace(config.Proxy.Login))
+                    {
+                        proxy.Credentials = new NetworkCredential(config.Proxy.Login, config.Proxy.Passwd);
+                    }
+
+                    managerWebSocket.Options.Proxy = proxy;
+                }
+
                 await ws.ConnectAsync(wsUri, CancellationToken.None);
-
-
             }
             catch (Exception ex)
             {
@@ -164,7 +190,7 @@ namespace WSCli.WS
                 TimeStamp = DateTime.UtcNow
             };
 
-            var data = await mEncoder.Encode(msg, kid);
+            var data = await mEncoder.Encode(msg, config.Kid);
 
             await managerWebSocket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true,
                 CancellationToken.None);
@@ -266,7 +292,7 @@ namespace WSCli.WS
         }
         private  async Task<JObject> SendManagerCommand(Message msg, int timeout = 5)
         {
-            var data = await mEncoder.Encode(msg, kid);
+            var data = await mEncoder.Encode(msg, config.Kid);
             var tcs = RegisterSimpleCommandResultHandler(msg.CorrelationId, timeout);
             await managerWebSocket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true,
                 CancellationToken.None);
