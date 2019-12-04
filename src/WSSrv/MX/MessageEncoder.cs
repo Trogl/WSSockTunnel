@@ -87,9 +87,9 @@ namespace WSSrv.MX
                 result.UserId = rsaKeys.UserId;
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                throw new Exception("The JWS signature is not valid.");
+                throw new Exception($"The JWS signature is not valid: {ex.Message}");
             }
 
             return result;
@@ -121,13 +121,13 @@ namespace WSSrv.MX
                 using var key = new RSACryptoServiceProvider();
                 key.ImportParameters(rsaKeys.Server);
 
-                return Jose.JWT.Decode(aResult.JweToken, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM);
+                return Jose.JWT.Decode(aResult.JweToken, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256CBC_HS512);
 
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                throw new Exception("The JWE Decode error");
+                throw new Exception($"The JWE Decode error: {ex.Message}");
             }
         }
 
@@ -149,7 +149,7 @@ namespace WSSrv.MX
             using var clientKey = new RSACryptoServiceProvider();
 
             clientKey.ImportParameters(rsaKeys.Client);
-            return Jose.JWT.Encode(data, clientKey, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM, extraHeaders: extraHeaders);
+            return Jose.JWT.Encode(data, clientKey, JweAlgorithm.RSA_OAEP, JweEncryption.A256CBC_HS512, extraHeaders: extraHeaders);
 
         }
         private async Task<string> Sign(string data, string kid)

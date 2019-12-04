@@ -94,7 +94,7 @@ namespace WSCli.MX
                 using var key = KeyStore.GetClientKey();
 
 
-                return Task.FromResult(Jose.JWT.Decode(aResult.JweToken, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM));
+                return Task.FromResult(Jose.JWT.Decode(aResult.JweToken, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256CBC_HS512));
 
 
             }
@@ -115,7 +115,7 @@ namespace WSCli.MX
             };
 
             using var key = KeyStore.GetServerKey();
-            return Task.FromResult(Jose.JWT.Encode(data, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256GCM, extraHeaders: extraHeaders));
+            return Task.FromResult(Jose.JWT.Encode(data, key, JweAlgorithm.RSA_OAEP, JweEncryption.A256CBC_HS512, extraHeaders: extraHeaders));
 
         }
         private Task<string> Sign(string data, string kid)

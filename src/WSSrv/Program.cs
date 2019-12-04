@@ -18,6 +18,7 @@ namespace WSSrv
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                
                 .ConfigureLogging(logging =>
                 {
                     logging.ClearProviders();
@@ -25,7 +26,10 @@ namespace WSSrv
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    webBuilder.UseKestrel();
+                    webBuilder.UseKestrel(o =>
+                    {
+                        o.ListenAnyIP(5000);
+                    });
                     webBuilder.UseStartup<Startup>();
                 });
     }
