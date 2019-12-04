@@ -4,6 +4,13 @@
     "passwd": "test1",
     "kid": "Jopas",
     "port": 10080
+    /*"proxy": {
+      "server": "",
+      "port": "",
+      "useDefaultCredentials": false,
+      "login": "",
+      "passwd":""
+    } */
   },
 
   "keyStore": {
